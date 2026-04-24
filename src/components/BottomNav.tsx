@@ -1,0 +1,33 @@
+import React from 'react';
+import { Home, Heart, MessageCircle, Map, User } from 'lucide-react';
+import type { Screen } from '../App';
+import { useApp } from '../context/AppContext';
+
+interface Props {
+  active: Screen;
+  onNavigate: (screen: Screen) => void;
+}
+
+export default function BottomNav({ active, onNavigate }: Props) {
+  const { state } = useApp();
+  const unreadMatches = state.matches.filter(m => !m.lastMessage || !m.lastMessage.read).length;
+
+  const items: { id: Screen; icon: React.ReactNode; label: string; badge?: number }[] = [
+    { id: 'discover', icon: <Home size={22} />, label: 'Inicio' },
+    { id: 'matches', icon: <MessageCircle size={22} />, label: 'Matches', badge: state.matches.length > 0 ? state.matches.length : undefined },
+    { id: 'zones', icon: <Map size={22} />, label: 'Zonas' },
+    { id: 'profile', icon: <User size={22} />, label: 'Perfil' },
+  ];
+
+  return (
+    <nav className="bottom-nav">
+      {items.map(item => (
+        <button key={item.id} className={`nav-item ${active === item.id ? 'active' : ''}`} onClick={() => onNavigate(item.id)}>
+          {item.badge !== undefined && <span className="nav-badge">{item.badge}</span>}
+          {item.icon}
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
