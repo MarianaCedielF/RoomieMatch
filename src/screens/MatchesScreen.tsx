@@ -23,7 +23,8 @@ export default function MatchesScreen() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const currentUser = state.currentUser!;
-  const { matches, messages } = state;
+  const { messages } = state;
+  const matches = state.matches.filter(m => m.users.includes(currentUser.id));
 
   const SUGGESTED_MESSAGES = [
     '¡Hola! ¿Cómo va la búsqueda?',
@@ -39,6 +40,7 @@ export default function MatchesScreen() {
   function openChat(match: Match) {
     setActiveMatch(match);
     setView('chat');
+    dispatch({ type: 'MARK_READ', payload: match.id });
   }
 
   function handleSend() {

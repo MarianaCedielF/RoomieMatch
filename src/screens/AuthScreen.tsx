@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, ChevronRight, CheckCircle, ArrowLeft } from 'lucide-react';
+import { ChevronRight, CheckCircle, ArrowLeft, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useApp, UNIVERSITIES } from '../context/AppContext';
 import type { UserProfile, HousingState, CompatibilityAnswers } from '../types';
 
@@ -12,31 +12,78 @@ const DEFAULT_COMPATIBILITY: CompatibilityAnswers = {
   studySchedule: 'afternoons',
 };
 
-type Step = 'welcome' | 'info' | 'housing' | 'compatibility' | 'done';
+interface StoredAccount {
+  email: string;
+  password: string;
+  profile: UserProfile;
+}
+
+function getAccounts(): StoredAccount[] {
+  try { return JSON.parse(localStorage.getItem('roomie_accounts') || '[]'); }
+  catch { return []; }
+}
+
+function saveAccount(account: StoredAccount) {
+  const accounts = getAccounts();
+  const idx = accounts.findIndex(a => a.email.toLowerCase() === account.email.toLowerCase());
+  if (idx >= 0) accounts[idx] = account; else accounts.push(account);
+  localStorage.setItem('roomie_accounts', JSON.stringify(accounts));
+}
+
+type Step = 'welcome' | 'login' | 'info' | 'housing' | 'compatibility';
 
 export default function AuthScreen() {
   const { dispatch } = useApp();
   const [step, setStep] = useState<Step>('welcome');
+
+  // Registration form
   const [form, setForm] = useState({
-    name: '', age: '20', email: '', career: '', semester: '1', originCity: '',
+    name: '', age: '20', email: '', password: '', career: '', semester: '1', originCity: '',
     bio: '', avatar: '🧑', universityId: UNIVERSITIES[0].id, housingState: 'A' as HousingState,
     neighborhood: '', city: '', rent: '600',
   });
   const [compat, setCompat] = useState<CompatibilityAnswers>(DEFAULT_COMPATIBILITY);
+  const [showRegPass, setShowRegPass] = useState(false);
+  const [registerError, setRegisterError] = useState('');
+
+  // Login form
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPass, setShowLoginPass] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   const setF = (k: string, v: string | boolean | number) => setForm(p => ({ ...p, [k]: v }));
   const setC = (k: keyof CompatibilityAnswers, v: unknown) => setCompat(p => ({ ...p, [k]: v }));
 
   const AVATARS = ['🧑', '👦', '👧', '👨', '👩', '🧑🏽', '👦🏽', '👧🏽', '👨🏽', '👩🏽', '🧑🏾', '👩🏾'];
 
-  function register() {
-    const uni = UNIVERSITIES.find(u => u.id === form.universityId)!;
+  const selectedUni = UNIVERSITIES.find(u => u.id === form.universityId)!;
+  const autoEmail = `${form.name.toLowerCase().replace(/\s+/g, '.')}@${selectedUni.emailDomain}`;
+  const resolvedEmail = form.email.trim() || autoEmail;
+
+  const canContinueInfo = form.name.trim() && form.career.trim() && form.originCity.trim() && form.password.length >= 4;
+
+  function handleLogin() {
+    setLoginError('');
+    const accounts = getAccounts();
+    const account = accounts.find(a => a.email.toLowerCase() === loginEmail.toLowerCase().trim());
+    if (!account) { setLoginError('No encontramos una cuenta con ese email.'); return; }
+    if (account.password !== loginPassword) { setLoginError('Contraseña incorrecta.'); return; }
+    dispatch({ type: 'LOGIN', payload: account.profile });
+  }
+
+  function handleRegister() {
+    setRegisterError('');
+    const email = resolvedEmail;
+    const existing = getAccounts().find(a => a.email.toLowerCase() === email.toLowerCase());
+    if (existing) { setRegisterError('Ya existe una cuenta con ese email. Intenta iniciar sesión.'); return; }
+
     const profile: UserProfile = {
       id: `user-${Date.now()}`,
       name: form.name,
       age: parseInt(form.age),
-      email: form.email || `${form.name.toLowerCase().replace(' ', '.')}@${uni.emailDomain}`,
-      university: uni,
+      email,
+      university: selectedUni,
       career: form.career,
       semester: parseInt(form.semester),
       originCity: form.originCity,
@@ -45,7 +92,7 @@ export default function AuthScreen() {
       housingState: form.housingState,
       housingDetails: form.housingState === 'B' ? {
         neighborhood: form.neighborhood,
-        city: form.city || uni.city,
+        city: form.city || selectedUni.city,
         rent: parseInt(form.rent),
         rules: [],
       } : undefined,
@@ -56,7 +103,21 @@ export default function AuthScreen() {
       reviewScore: undefined,
       reviewCount: 0,
     };
+    saveAccount({ email, password: form.password, profile });
     dispatch({ type: 'REGISTER', payload: profile });
+  }
+
+  function demoLogin() {
+    const demoUser: UserProfile = {
+      id: 'user-1', name: 'Demo Usuario', age: 21,
+      email: 'demo@unal.edu.co', university: UNIVERSITIES[0],
+      career: 'Ingeniería de Sistemas', semester: 3, originCity: 'Manizales',
+      bio: 'Estudiante foráneo buscando roomie. Me gusta la música y el café ☕',
+      avatar: '🧑', housingState: 'A', verified: true,
+      joinedAt: new Date().toISOString(), likedBy: [], reviewCount: 0,
+      compatibility: DEFAULT_COMPATIBILITY,
+    };
+    dispatch({ type: 'LOGIN', payload: demoUser });
   }
 
   const housingStateLabels: Record<HousingState, { label: string; desc: string; icon: string }> = {
@@ -65,53 +126,114 @@ export default function AuthScreen() {
     C: { label: 'Tengo roomie, busco cuarto', desc: 'Ya encontré mi roomie y juntos buscamos donde vivir', icon: '👫' },
   };
 
-  if (step === 'welcome') return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'linear-gradient(160deg, #0F6E56 0%, #1D9E75 50%, #2DD4A0 100%)', padding: '0 24px', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center', color: 'white', marginBottom: 48 }}>
-        <div style={{ fontSize: 72, marginBottom: 16 }}>🏠</div>
-        <h1 style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1, marginBottom: 8 }}>RoomieMatch</h1>
-        <p style={{ fontSize: 16, opacity: 0.85, lineHeight: 1.6, maxWidth: 280, margin: '0 auto' }}>
-          Encuentra tu roomie ideal para vivir tu vida universitaria en Colombia
-        </p>
-      </div>
-      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <button className="btn btn-primary" style={{ background: 'white', color: 'var(--teal-dark)', fontSize: 16, padding: '16px', borderRadius: 'var(--radius-lg)' }} onClick={() => setStep('info')}>
-          Crear cuenta
-        </button>
-        <button className="btn" style={{ background: 'rgba(255,255,255,0.2)', color: 'white', fontSize: 16, padding: '16px', borderRadius: 'var(--radius-lg)' }}
-          onClick={() => {
-            // Demo login
-            const demoUser: UserProfile = {
-              id: 'user-1', name: 'Demo Usuario', age: 21,
-              email: 'demo@unal.edu.co', university: UNIVERSITIES[0],
-              career: 'Ingeniería de Sistemas', semester: 3, originCity: 'Manizales',
-              bio: 'Estudiante foráneo buscando roomie. Me gusta la música y el café ☕',
-              avatar: '🧑', housingState: 'A', verified: true,
-              joinedAt: new Date().toISOString(), likedBy: [], reviewCount: 0,
-              compatibility: DEFAULT_COMPATIBILITY,
-            };
-            dispatch({ type: 'LOGIN', payload: demoUser });
-          }}>
-          Entrar como demo
-        </button>
-      </div>
-      <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 24, textAlign: 'center' }}>
-        Solo para universitarios verificados en Colombia 🇨🇴
-      </p>
-    </div>
-  );
-
   return (
-    <div className="app-container" style={{ maxWidth: '430px', margin: '0 auto' }}>
-      {/* Progress bar */}
-      <div style={{ height: 4, background: 'var(--gray-200)', position: 'relative' }}>
-        <div style={{ height: '100%', background: 'var(--teal)', width: step === 'info' ? '33%' : step === 'housing' ? '66%' : step === 'compatibility' ? '90%' : '100%', transition: 'width 0.3s' }} />
-      </div>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-      <div className="page-content" style={{ padding: '0 0 100px' }}>
-        {/* Step: Info */}
-        {step === 'info' && (
-          <div style={{ padding: '24px 20px' }} className="animate-slide-up">
+      {/* ── Welcome ── */}
+      {step === 'welcome' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(160deg, #0F6E56 0%, #1D9E75 55%, #2DD4A0 100%)', padding: '0 28px', alignItems: 'center', justifyContent: 'center', overflowY: 'auto' }}>
+          <div style={{ textAlign: 'center', color: 'white', marginBottom: 48 }}>
+            <div style={{ fontSize: 72, marginBottom: 16 }}>🏠</div>
+            <h1 style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1, marginBottom: 8 }}>RoomieMatch</h1>
+            <p style={{ fontSize: 16, opacity: 0.85, lineHeight: 1.6, maxWidth: 280, margin: '0 auto' }}>
+              Encuentra tu roomie ideal para vivir tu vida universitaria en Colombia
+            </p>
+          </div>
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <button className="btn btn-primary" style={{ background: 'white', color: 'var(--teal-dark)', fontSize: 16, padding: '16px', borderRadius: 'var(--radius-lg)', width: '100%' }}
+              onClick={() => setStep('info')}>
+              Crear cuenta
+            </button>
+            <button className="btn" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 16, padding: '16px', borderRadius: 'var(--radius-lg)', border: '1.5px solid rgba(255,255,255,0.4)', width: '100%' }}
+              onClick={() => { setLoginError(''); setStep('login'); }}>
+              Iniciar sesión
+            </button>
+            <button style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.75)', fontSize: 15, padding: '12px', cursor: 'pointer', fontWeight: 500 }}
+              onClick={demoLogin}>
+              Entrar como demo →
+            </button>
+          </div>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 28, textAlign: 'center' }}>
+            Solo para universitarios verificados en Colombia 🇨🇴
+          </p>
+        </div>
+      )}
+
+      {/* ── Login ── */}
+      {step === 'login' && (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ padding: '28px 24px 48px' }} className="animate-slide-up">
+            <button onClick={() => setStep('welcome')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--gray-500)' }}>
+              <ArrowLeft size={16} /> Volver
+            </button>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>👋</div>
+            <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Bienvenido de vuelta</h2>
+            <p style={{ color: 'var(--gray-500)', marginBottom: 28, fontSize: 14 }}>Ingresa con tu email y contraseña</p>
+
+            <div className="form-group">
+              <label className="form-label">Email institucional</label>
+              <div style={{ position: 'relative' }}>
+                <input className="form-input" type="email" placeholder="tu@universidad.edu.co"
+                  value={loginEmail} onChange={e => { setLoginEmail(e.target.value); setLoginError(''); }}
+                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                  style={{ paddingLeft: 42 }} />
+                <Mail size={16} color="var(--gray-400)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Contraseña</label>
+              <div style={{ position: 'relative' }}>
+                <input className="form-input" type={showLoginPass ? 'text' : 'password'} placeholder="••••••••"
+                  value={loginPassword} onChange={e => { setLoginPassword(e.target.value); setLoginError(''); }}
+                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                  style={{ paddingLeft: 42, paddingRight: 46 }} />
+                <Lock size={16} color="var(--gray-400)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <button onClick={() => setShowLoginPass(s => !s)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', padding: 0 }}>
+                  {showLoginPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            {loginError && (
+              <div style={{ background: 'var(--coral-light)', border: '1px solid var(--coral)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 16 }}>
+                <p style={{ color: 'var(--coral)', fontSize: 13, fontWeight: 500 }}>⚠️ {loginError}</p>
+              </div>
+            )}
+
+            <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginTop: 4, fontSize: 16 }}
+              onClick={handleLogin} disabled={!loginEmail || !loginPassword}>
+              Ingresar
+            </button>
+
+            <div style={{ textAlign: 'center', marginTop: 20 }}>
+              <span style={{ color: 'var(--gray-500)', fontSize: 14 }}>¿Aún no tienes cuenta? </span>
+              <button onClick={() => setStep('info')} style={{ background: 'none', border: 'none', color: 'var(--teal)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+                Crear una aquí
+              </button>
+            </div>
+
+            <div style={{ marginTop: 24, padding: '14px 16px', background: 'var(--gray-50)', borderRadius: 'var(--radius)', border: '1px solid var(--gray-200)' }}>
+              <p style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 4 }}>¿Quieres explorar la app?</p>
+              <button onClick={demoLogin} style={{ background: 'none', border: 'none', color: 'var(--teal)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: 0 }}>
+                Entrar como demo →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Progress bar (registration steps) ── */}
+      {(step === 'info' || step === 'housing' || step === 'compatibility') && (
+        <div style={{ height: 4, background: 'var(--gray-200)', flexShrink: 0 }}>
+          <div style={{ height: '100%', background: 'var(--teal)', width: step === 'info' ? '33%' : step === 'housing' ? '66%' : '100%', transition: 'width 0.3s' }} />
+        </div>
+      )}
+
+      {/* ── Info step ── */}
+      {step === 'info' && (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ padding: '24px 20px 48px' }} className="animate-slide-up">
             <button onClick={() => setStep('welcome')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--gray-500)' }}>
               <ArrowLeft size={16} /> Volver
             </button>
@@ -128,7 +250,7 @@ export default function AuthScreen() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Nombre completo</label>
+              <label className="form-label">Nombre completo *</label>
               <input className="form-input" placeholder="Ej: María García" value={form.name} onChange={e => setF('name', e.target.value)} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -142,58 +264,106 @@ export default function AuthScreen() {
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Universidad</label>
+              <label className="form-label">Universidad *</label>
               <select className="form-select" value={form.universityId} onChange={e => setF('universityId', e.target.value)}>
                 {UNIVERSITIES.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Carrera</label>
+              <label className="form-label">Carrera *</label>
               <input className="form-input" placeholder="Ej: Ingeniería de Sistemas" value={form.career} onChange={e => setF('career', e.target.value)} />
             </div>
             <div className="form-group">
-              <label className="form-label">Ciudad de origen</label>
+              <label className="form-label">Ciudad de origen *</label>
               <input className="form-input" placeholder="Ej: Cali" value={form.originCity} onChange={e => setF('originCity', e.target.value)} />
             </div>
+
+            <div style={{ height: 1, background: 'var(--gray-200)', margin: '4px 0 20px' }} />
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-700)', marginBottom: 16 }}>🔐 Acceso a tu cuenta</p>
+
             <div className="form-group">
-              <label className="form-label">Bio (cuéntate un poco)</label>
+              <label className="form-label">Email institucional</label>
+              <div style={{ position: 'relative' }}>
+                <input className="form-input" type="email" value={form.email} onChange={e => setF('email', e.target.value)}
+                  placeholder={form.name ? autoEmail : `tu@${selectedUni.emailDomain}`}
+                  style={{ paddingLeft: 42 }} />
+                <Mail size={15} color="var(--gray-400)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              </div>
+              {!form.email && form.name && (
+                <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>Se usará: {autoEmail}</span>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Contraseña * <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>(mín. 4 caracteres)</span></label>
+              <div style={{ position: 'relative' }}>
+                <input className="form-input" type={showRegPass ? 'text' : 'password'} placeholder="Crea una contraseña"
+                  value={form.password} onChange={e => setF('password', e.target.value)}
+                  style={{ paddingLeft: 42, paddingRight: 46 }} />
+                <Lock size={15} color="var(--gray-400)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <button onClick={() => setShowRegPass(s => !s)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', padding: 0 }}>
+                  {showRegPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Bio (opcional)</label>
               <textarea className="form-input" rows={3} placeholder="Me gusta el café, soy muy ordenada y busco un ambiente tranquilo..." value={form.bio} onChange={e => setF('bio', e.target.value)} style={{ resize: 'none' }} />
             </div>
-            <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginTop: 8 }} onClick={() => setStep('housing')} disabled={!form.name || !form.career || !form.originCity}>
+
+            {registerError && (
+              <div style={{ background: 'var(--coral-light)', border: '1px solid var(--coral)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 16 }}>
+                <p style={{ color: 'var(--coral)', fontSize: 13 }}>⚠️ {registerError}</p>
+              </div>
+            )}
+
+            <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginTop: 8 }}
+              onClick={() => { setRegisterError(''); setStep('housing'); }}
+              disabled={!canContinueInfo}>
               Continuar <ChevronRight size={18} />
             </button>
-          </div>
-        )}
 
-        {/* Step: Housing State */}
-        {step === 'housing' && (
-          <div style={{ padding: '24px 20px' }} className="animate-slide-up">
+            <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <span style={{ color: 'var(--gray-500)', fontSize: 14 }}>¿Ya tienes cuenta? </span>
+              <button onClick={() => setStep('login')} style={{ background: 'none', border: 'none', color: 'var(--teal)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+                Iniciar sesión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Housing step ── */}
+      {step === 'housing' && (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ padding: '24px 20px 48px' }} className="animate-slide-up">
             <button onClick={() => setStep('info')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--gray-500)' }}>
               <ArrowLeft size={16} /> Volver
             </button>
             <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>¿Cuál es tu situación?</h2>
             <p style={{ color: 'var(--gray-500)', marginBottom: 24, fontSize: 14 }}>Esto define cómo te emparejamos con otros foráneos</p>
 
-            {(['A', 'B', 'C'] as HousingState[]).map(state => {
-              const info = housingStateLabels[state];
+            {(['A', 'B', 'C'] as HousingState[]).map(st => {
+              const info = housingStateLabels[st];
               const colors = { A: 'var(--teal)', B: 'var(--purple)', C: 'var(--amber)' };
               const lightColors = { A: 'var(--teal-light)', B: 'var(--purple-light)', C: 'var(--amber-light)' };
-              const selected = form.housingState === state;
+              const selected = form.housingState === st;
               return (
-                <button key={state} onClick={() => setF('housingState', state)}
-                  style={{ width: '100%', textAlign: 'left', padding: '16px', borderRadius: 'var(--radius-lg)', border: `2px solid ${selected ? colors[state] : 'var(--gray-200)'}`, background: selected ? lightColors[state] : 'white', cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 16, transition: 'all 0.15s' }}>
+                <button key={st} onClick={() => setF('housingState', st)}
+                  style={{ width: '100%', textAlign: 'left', padding: '16px', borderRadius: 'var(--radius-lg)', border: `2px solid ${selected ? colors[st] : 'var(--gray-200)'}`, background: selected ? lightColors[st] : 'white', cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 16, transition: 'all 0.15s' }}>
                   <span style={{ fontSize: 32 }}>{info.icon}</span>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: selected ? colors[state] : 'var(--dark)' }}>{info.label}</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: selected ? colors[st] : 'var(--dark)' }}>{info.label}</div>
                     <div style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 2 }}>{info.desc}</div>
                   </div>
-                  {selected && <CheckCircle size={20} color={colors[state]} style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+                  {selected && <CheckCircle size={20} color={colors[st]} style={{ marginLeft: 'auto', flexShrink: 0 }} />}
                 </button>
               );
             })}
 
             {form.housingState === 'B' && (
-              <div style={{ marginTop: 8, padding: 16, background: 'var(--purple-light)', borderRadius: 'var(--radius)', border: '1px solid var(--purple-light)' }}>
+              <div style={{ marginTop: 8, padding: 16, background: 'var(--purple-light)', borderRadius: 'var(--radius)' }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--purple)', marginBottom: 12 }}>Detalles de tu cuarto</p>
                 <div className="form-group" style={{ marginBottom: 12 }}>
                   <label className="form-label">Barrio / Sector</label>
@@ -210,18 +380,19 @@ export default function AuthScreen() {
               Continuar <ChevronRight size={18} />
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Step: Compatibility Test */}
-        {step === 'compatibility' && (
-          <div style={{ padding: '24px 20px' }} className="animate-slide-up">
+      {/* ── Compatibility step ── */}
+      {step === 'compatibility' && (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ padding: '24px 20px 48px' }} className="animate-slide-up">
             <button onClick={() => setStep('housing')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--gray-500)' }}>
               <ArrowLeft size={16} /> Volver
             </button>
             <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Test de compatibilidad</h2>
             <p style={{ color: 'var(--gray-500)', marginBottom: 24, fontSize: 14 }}>Tus respuestas generan el score de compatibilidad con otros foráneos</p>
 
-            {/* Sleep */}
             <SectionTitle>🌙 Horarios de sueño</SectionTitle>
             <ChoiceGroup label="¿A qué hora te acuestas normalmente?"
               options={[{ value: 'early', label: 'Antes de 10pm' }, { value: 'normal', label: '10-11pm' }, { value: 'late', label: '11pm-1am' }, { value: 'very_late', label: 'Después de 1am' }]}
@@ -230,7 +401,6 @@ export default function AuthScreen() {
               options={[{ value: 'very_early', label: 'Antes de 6am' }, { value: 'early', label: '6-7am' }, { value: 'normal', label: '7-9am' }, { value: 'late', label: 'Después de 9am' }]}
               value={compat.wakeTime} onChange={v => setC('wakeTime', v)} />
 
-            {/* Cleanliness */}
             <SectionTitle>🧹 Limpieza</SectionTitle>
             <div className="form-group">
               <label className="form-label">Nivel de limpieza (1=muy desord. / 5=muy ordenado)</label>
@@ -247,7 +417,6 @@ export default function AuthScreen() {
               options={[{ value: 'daily', label: 'Diario' }, { value: 'weekly', label: 'Semanal' }, { value: 'biweekly', label: 'Quincenal' }, { value: 'monthly', label: 'Mensual' }]}
               value={compat.cleaningFrequency} onChange={v => setC('cleaningFrequency', v)} />
 
-            {/* Noise */}
             <SectionTitle>🔊 Ruido y estudio</SectionTitle>
             <ChoiceGroup label="Nivel de ruido que produces normalmente"
               options={[{ value: 'silent', label: 'Silencioso' }, { value: 'quiet', label: 'Tranquilo' }, { value: 'moderate', label: 'Moderado' }, { value: 'loud', label: 'Ruidoso' }]}
@@ -256,24 +425,12 @@ export default function AuthScreen() {
               options={[{ value: 'silence', label: 'En silencio' }, { value: 'ambient', label: 'Ruido ambiental' }, { value: 'music', label: 'Con música' }, { value: 'any', label: 'Me adapto' }]}
               value={compat.studyEnvironment} onChange={v => setC('studyEnvironment', v)} />
 
-            {/* Guests */}
             <SectionTitle>🚪 Visitas</SectionTitle>
             <ChoiceGroup label="¿Con qué frecuencia recibes visitas?"
               options={[{ value: 'never', label: 'Nunca' }, { value: 'rarely', label: 'Rara vez' }, { value: 'sometimes', label: 'Seguido' }, { value: 'often', label: 'Muy seguido' }]}
               value={compat.guestsFrequency} onChange={v => setC('guestsFrequency', v)} />
-            <div className="form-group">
-              <label className="form-label">¿Aceptas que tu roomie tenga visitas que duerman?</label>
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                {[{ v: true, l: 'Sí' }, { v: false, l: 'No' }].map(({ v, l }) => (
-                  <button key={l} onClick={() => setC('overnightGuests', v)}
-                    style={{ flex: 1, padding: '10px 0', border: '2px solid', borderColor: compat.overnightGuests === v ? 'var(--teal)' : 'var(--gray-200)', borderRadius: 'var(--radius)', fontWeight: 700, background: compat.overnightGuests === v ? 'var(--teal-light)' : 'white', color: compat.overnightGuests === v ? 'var(--teal)' : 'var(--gray-600)', cursor: 'pointer' }}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <BoolChoice label="¿Aceptas que tu roomie tenga visitas que duerman?" value={compat.overnightGuests} onChange={v => setC('overnightGuests', v)} />
 
-            {/* Budget */}
             <SectionTitle>💰 Presupuesto</SectionTitle>
             <ChoiceGroup label="Arriendo mensual que puedes pagar (miles COP)"
               options={[{ value: 'under_400', label: '<$400k' }, { value: '400_600', label: '$400-600k' }, { value: '600_800', label: '$600-800k' }, { value: 'over_800', label: '>$800k' }]}
@@ -282,7 +439,6 @@ export default function AuthScreen() {
               options={[{ value: 'strict_50', label: '50/50 exacto' }, { value: 'flexible', label: 'Flexible' }, { value: 'whoever_has_more', label: 'Según ingresos' }]}
               value={compat.expenseSplit} onChange={v => setC('expenseSplit', v)} />
 
-            {/* Social */}
             <SectionTitle>🧑‍🤝‍🧑 Estilo social</SectionTitle>
             <ChoiceGroup label="¿Cómo te describes?"
               options={[{ value: 'introvert', label: 'Introvertido' }, { value: 'ambivert', label: 'Ambivertido' }, { value: 'extrovert', label: 'Extrovertido' }]}
@@ -291,19 +447,19 @@ export default function AuthScreen() {
               options={[{ value: 'prefer_alone', label: 'Prefiero mi espacio' }, { value: 'neutral', label: 'Neutral' }, { value: 'enjoy_together', label: 'Me gusta compartir' }]}
               value={compat.sharedSpaces} onChange={v => setC('sharedSpaces', v)} />
 
-            {/* Pets & Smoking */}
             <SectionTitle>🐾 Mascotas y fumar</SectionTitle>
             <BoolChoice label="¿Tienes mascotas?" value={compat.hasPets} onChange={v => setC('hasPets', v)} />
             <BoolChoice label="¿Aceptas mascotas de tu roomie?" value={compat.acceptsPets} onChange={v => setC('acceptsPets', v)} />
             <BoolChoice label="¿Fumas?" value={compat.smokes} onChange={v => setC('smokes', v)} />
             <BoolChoice label="¿Aceptas que tu roomie fume?" value={compat.acceptsSmoking} onChange={v => setC('acceptsSmoking', v)} />
 
-            <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginTop: 20 }} onClick={register}>
+            <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginTop: 20 }} onClick={handleRegister}>
               Crear mi perfil 🚀
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
     </div>
   );
 }

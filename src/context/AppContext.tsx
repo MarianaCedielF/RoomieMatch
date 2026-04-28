@@ -5,6 +5,48 @@ import type {
 } from '../types';
 import { MOCK_PROFILES, MOCK_ZONES, MOCK_REVIEWS, UNIVERSITIES } from '../data/mockData';
 
+// ── Demo experience data ──────────────────────────────────────────────────────
+const DEMO_MESSAGES: Record<string, Message[]> = {
+  'match-demo-1': [
+    { id: 'msg-d1-1', matchId: 'match-demo-1', senderId: 'user-3', text: '¡Hola! Vi tu perfil y creo que somos muy compatibles 🙌', createdAt: '2026-04-21T10:00:00Z', read: false },
+    { id: 'msg-d1-2', matchId: 'match-demo-1', senderId: 'user-3', text: 'Tengo un cuarto en Chapinero, muy cerca al TransMilenio. ¿Cuándo podemos hablar?', createdAt: '2026-04-21T10:05:00Z', read: false },
+  ],
+  'match-demo-2': [],
+  'match-demo-3': [
+    { id: 'msg-d3-1', matchId: 'match-demo-3', senderId: 'user-1', text: '¡Hola Daniela! Tu perfil me llamó mucho la atención 😊', createdAt: '2026-04-16T09:00:00Z', read: true },
+    { id: 'msg-d3-2', matchId: 'match-demo-3', senderId: 'user-12', text: '¡Hola! Qué bueno, cuéntame. ¿De dónde eres?', createdAt: '2026-04-16T11:30:00Z', read: true },
+    { id: 'msg-d3-3', matchId: 'match-demo-3', senderId: 'user-1', text: 'Soy de Manizales! Primer semestre en Bogotá buscando donde vivir jeje', createdAt: '2026-04-16T12:00:00Z', read: true },
+    { id: 'msg-d3-4', matchId: 'match-demo-3', senderId: 'user-12', text: '¡Yo también soy de Manizales! 😱 ¡Tenemos que coordinar esto!', createdAt: '2026-04-16T14:00:00Z', read: true },
+  ],
+};
+
+const DEMO_MATCHES: Match[] = [
+  {
+    id: 'match-demo-1',
+    users: ['user-1', 'user-3'],
+    createdAt: '2026-04-20T10:00:00Z',
+    compatibilityScore: 78,
+    lastMessage: DEMO_MESSAGES['match-demo-1'][1],
+  },
+  {
+    id: 'match-demo-2',
+    users: ['user-1', 'user-4'],
+    createdAt: '2026-04-22T08:00:00Z',
+    compatibilityScore: 71,
+    lastMessage: undefined,
+  },
+  {
+    id: 'match-demo-3',
+    users: ['user-1', 'user-12'],
+    createdAt: '2026-04-15T14:00:00Z',
+    compatibilityScore: 80,
+    lastMessage: DEMO_MESSAGES['match-demo-3'][3],
+  },
+];
+
+// IDs already matched in demo (excluded from discover)
+const DEMO_SWIPED = ['user-3', 'user-4', 'user-12'];
+
 // ── Initial State ─────────────────────────────────────────────────────────────
 const initialState: AppState = {
   currentUser: null,
@@ -37,8 +79,26 @@ type Action =
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'REGISTER':
-    case 'LOGIN':
-      return { ...state, currentUser: action.payload };
+      return {
+        ...state,
+        currentUser: action.payload,
+        matches: [],
+        messages: {},
+        swipedIds: [],
+        likedIds: [],
+      };
+
+    case 'LOGIN': {
+      const isDemo = action.payload.id === 'user-1';
+      return {
+        ...state,
+        currentUser: action.payload,
+        matches: isDemo ? DEMO_MATCHES : [],
+        messages: isDemo ? DEMO_MESSAGES : {},
+        swipedIds: isDemo ? DEMO_SWIPED : [],
+        likedIds: isDemo ? DEMO_SWIPED : [],
+      };
+    }
 
     case 'LOGOUT':
       return { ...state, currentUser: null, swipedIds: [], likedIds: [], matches: [], messages: {} };
@@ -48,17 +108,14 @@ function reducer(state: AppState, action: Action): AppState {
       const newSwipedIds = [...state.swipedIds, targetId];
       const newLikedIds = [...state.likedIds, targetId];
 
-      // Update the target profile's likedBy
       const updatedProfiles = state.profiles.map(p =>
         p.id === targetId ? { ...p, likedBy: [...p.likedBy, state.currentUser!.id] } : p
       );
 
-      // Check for mutual match
       const targetProfile = state.profiles.find(p => p.id === targetId);
       const isMutualMatch = targetProfile?.likedBy.includes(state.currentUser!.id) ?? false;
 
       if (isMutualMatch) {
-        // inline score calculation to avoid circular import
         const a = state.currentUser!.compatibility;
         const b = targetProfile!.compatibility;
         const sleepOrder: Record<string, number> = { early: 0, normal: 1, late: 2, very_late: 3 };
@@ -104,11 +161,24 @@ function reducer(state: AppState, action: Action): AppState {
       const { matchId } = action.payload;
       const existing = state.messages[matchId] || [];
       const updated = { ...state.messages, [matchId]: [...existing, action.payload] };
-      // Update lastMessage on match
       const updatedMatches = state.matches.map(m =>
         m.id === matchId ? { ...m, lastMessage: action.payload } : m
       );
       return { ...state, messages: updated, matches: updatedMatches };
+    }
+
+    case 'MARK_READ': {
+      const matchId = action.payload;
+      const existing = state.messages[matchId] || [];
+      return {
+        ...state,
+        messages: {
+          ...state.messages,
+          [matchId]: existing.map(m =>
+            m.senderId !== state.currentUser?.id ? { ...m, read: true } : m
+          ),
+        },
+      };
     }
 
     case 'CREATE_AGREEMENT':
@@ -160,7 +230,6 @@ function reducer(state: AppState, action: Action): AppState {
 interface AppContextValue {
   state: AppState;
   dispatch: React.Dispatch<Action>;
-  // Helpers
   swipeLike: (targetId: string) => void;
   swipePass: (targetId: string) => void;
   sendMessage: (matchId: string, text: string) => void;

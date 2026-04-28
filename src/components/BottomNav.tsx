@@ -10,11 +10,16 @@ interface Props {
 
 export default function BottomNav({ active, onNavigate }: Props) {
   const { state } = useApp();
-  const unreadMatches = state.matches.filter(m => !m.lastMessage || !m.lastMessage.read).length;
+  const currentUserId = state.currentUser?.id;
+  const myMatches = state.matches.filter(m => currentUserId && m.users.includes(currentUserId));
+  const unread = myMatches.filter(m => {
+    const msgs = state.messages[m.id] || [];
+    return msgs.some(msg => !msg.read && msg.senderId !== currentUserId);
+  }).length;
 
   const items: { id: Screen; icon: React.ReactNode; label: string; badge?: number }[] = [
     { id: 'discover', icon: <Home size={22} />, label: 'Inicio' },
-    { id: 'matches', icon: <MessageCircle size={22} />, label: 'Matches', badge: state.matches.length > 0 ? state.matches.length : undefined },
+    { id: 'matches', icon: <MessageCircle size={22} />, label: 'Matches', badge: unread > 0 ? unread : myMatches.length > 0 ? myMatches.length : undefined },
     { id: 'zones', icon: <Map size={22} />, label: 'Zonas' },
     { id: 'profile', icon: <User size={22} />, label: 'Perfil' },
   ];

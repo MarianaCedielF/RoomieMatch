@@ -46,7 +46,8 @@ html, body, #root {
 .app-container {
   max-width: 430px;
   margin: 0 auto;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   background: var(--white);
   display: flex;
   flex-direction: column;

@@ -13,17 +13,21 @@ function AppInner() {
   const { state } = useApp();
   const [screen, setScreen] = useState<Screen>('discover');
 
-  if (!state.currentUser) return <AuthScreen />;
-
   return (
     <div className="app-container">
-      <div className="page-content" style={{ paddingBottom: 80 }}>
-        {screen === 'discover' && <DiscoverScreen />}
-        {screen === 'matches' && <MatchesScreen />}
-        {screen === 'zones' && <ZonesScreen />}
-        {screen === 'profile' && <ProfileScreen />}
-      </div>
-      <BottomNav active={screen} onNavigate={setScreen} />
+      {!state.currentUser ? (
+        <AuthScreen />
+      ) : (
+        <>
+          <div className="page-content" style={{ paddingBottom: 80 }}>
+            {screen === 'discover' && <DiscoverScreen />}
+            {screen === 'matches' && <MatchesScreen />}
+            {screen === 'zones' && <ZonesScreen />}
+            {screen === 'profile' && <ProfileScreen />}
+          </div>
+          <BottomNav active={screen} onNavigate={setScreen} />
+        </>
+      )}
     </div>
   );
 }
