@@ -17,10 +17,17 @@ export default function DiscoverScreen() {
   const currentUser = state.currentUser!;
   const matchedIds = new Set(state.matches.flatMap(m => m.users));
 
-  // Filter: not swiped, not already matched, compatible housing state
+  // City filter — default to current user's university city
+  const availableCities = [...new Set(state.profiles.map(p => p.university.city))].sort();
+  const [selectedCity, setSelectedCity] = useState<string>(currentUser.university.city);
+
+  // Filter: not swiped, not matched, compatible housing state, same destination city, not found roomie yet
   const candidates = state.profiles.filter(p => {
+    if (p.id === currentUser.id) return false;
+    if (p.foundRoomie) return false;
     if (state.swipedIds.includes(p.id)) return false;
     if (matchedIds.has(p.id)) return false;
+    if (p.university.city !== selectedCity) return false;
     // State B can't match with State B
     if (currentUser.housingState === 'B' && p.housingState === 'B') return false;
     // State C looks for State B
@@ -31,15 +38,30 @@ export default function DiscoverScreen() {
   const topCard = candidates[0];
   const nextCard = candidates[1];
 
+  const CityChips = (
+    <div style={{ overflowX: 'auto', display: 'flex', gap: 8, paddingBottom: 2, scrollbarWidth: 'none' }}>
+      {availableCities.map(city => (
+        <button key={city} onClick={() => setSelectedCity(city)}
+          style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 'var(--radius-full)', border: '1.5px solid', borderColor: selectedCity === city ? 'var(--teal)' : 'var(--gray-200)', background: selectedCity === city ? 'var(--teal-light)' : 'white', color: selectedCity === city ? 'var(--teal-dark)' : 'var(--gray-600)', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+          {city}
+        </button>
+      ))}
+    </div>
+  );
+
   if (!topCard) return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div className="page-header">
-        <h1 className="page-title">Descubrir</h1>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div className="page-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+          <h1 className="page-title">Descubrir</h1>
+          <span className="badge badge-teal">0 disponibles</span>
+        </div>
+        {CityChips}
       </div>
       <div className="empty-state" style={{ flex: 1 }}>
         <div className="empty-state-icon">🎉</div>
         <div className="empty-state-title">¡Lo viste todo!</div>
-        <div className="empty-state-desc">No hay más perfiles por ahora. Vuelve pronto o revisa tus matches.</div>
+        <div className="empty-state-desc">No hay más perfiles en {selectedCity} por ahora. Prueba otra ciudad o vuelve pronto.</div>
       </div>
     </div>
   );
@@ -68,10 +90,13 @@ export default function DiscoverScreen() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div className="page-header">
-        <h1 className="page-title">Descubrir</h1>
-        <span className="badge badge-teal">{candidates.length} disponibles</span>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div className="page-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+          <h1 className="page-title">Descubrir</h1>
+          <span className="badge badge-teal">{candidates.length} disponibles</span>
+        </div>
+        {CityChips}
       </div>
 
       <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
@@ -103,6 +128,11 @@ export default function DiscoverScreen() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, opacity: 0.85, fontSize: 12 }}>
                     <MapPin size={12} /> {topCard.originCity} → {topCard.university.city}
                   </div>
+                  {topCard.preferredZone && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, opacity: 0.8, fontSize: 11 }}>
+                      <span>📍</span> Zona preferida: {topCard.preferredZone}
+                    </div>
+                  )}
                 </div>
                 {/* Compatibility score */}
                 <div style={{ flexShrink: 0, textAlign: 'center' }}>
@@ -196,12 +226,12 @@ function CompatibilityModal({ user, currentUser, onClose }: { user: UserProfile;
     { key: 'noise', label: 'Ruido', icon: '🔊' },
     { key: 'guests', label: 'Visitas', icon: '🚪' },
     { key: 'social', label: 'Estilo social', icon: '🤝' },
-    { key: 'budget', label: 'Presupuesto', icon: '💰' },
+    { key: 'budget', label: 'Presupuesto mensual', icon: '💰' },
   ] as const;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0', width: '100%', padding: '24px 20px 40px', maxHeight: '80vh', overflowY: 'auto' }} className="animate-slide-up">
+      <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0', width: '100%', padding: '24px 20px 56px', maxHeight: '92vh', height: '92vh', overflowY: 'scroll', WebkitOverflowScrolling: 'touch' as any }} className="animate-slide-up">
         <div style={{ width: 36, height: 4, background: 'var(--gray-200)', borderRadius: 2, margin: '0 auto 20px' }} />
         <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Compatibilidad con {user.name}</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>

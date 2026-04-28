@@ -11,11 +11,10 @@ export interface University {
 }
 
 export interface HousingDetails {
-  // State B — has a room
   address?: string;
   neighborhood?: string;
   city?: string;
-  rent?: number;          // COP per person
+  rent?: number;
   photos?: string[];
   rules?: string[];
   availableFrom?: string;
@@ -23,11 +22,11 @@ export interface HousingDetails {
 
 export interface CompatibilityAnswers {
   // Sleep schedule
-  sleepTime: 'early' | 'normal' | 'late' | 'very_late';       // <22h | 22-23h | 23-0h | >0h
-  wakeTime: 'very_early' | 'early' | 'normal' | 'late';       // <6h | 6-7h | 7-9h | >9h
+  sleepTime: 'early' | 'normal' | 'late' | 'very_late';
+  wakeTime: 'very_early' | 'early' | 'normal' | 'late';
 
   // Cleanliness
-  cleanlinessLevel: 1 | 2 | 3 | 4 | 5;                         // 1=very messy, 5=very clean
+  cleanlinessLevel: 1 | 2 | 3 | 4 | 5;
   cleaningFrequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
 
   // Noise
@@ -40,7 +39,7 @@ export interface CompatibilityAnswers {
 
   // Shared expenses
   expenseSplit: 'strict_50' | 'flexible' | 'whoever_has_more';
-  budgetRange: 'under_400' | '400_600' | '600_800' | 'over_800'; // thousands COP
+  budgetRange: 'under_400' | '400_600' | '600_800' | 'over_800';
 
   // Social style
   socialStyle: 'introvert' | 'ambivert' | 'extrovert';
@@ -54,28 +53,34 @@ export interface CompatibilityAnswers {
 
   // Study habits
   studySchedule: 'mornings' | 'afternoons' | 'evenings' | 'nights' | 'flexible';
+
+  // Cleaning service (empleada de servicio)
+  cleaningService?: 'yes' | 'no' | 'open';
 }
 
 export interface UserProfile {
   id: string;
   name: string;
   age: number;
-  email: string;                   // university email
+  email: string;
   university: University;
   career: string;
   semester: number;
   originCity: string;
   bio: string;
-  avatar: string;                  // emoji or url
+  avatar: string;
   housingState: HousingState;
   housingDetails?: HousingDetails;
   compatibility: CompatibilityAnswers;
-  roommieId?: string;              // if State C — already matched partner
-  reviewScore?: number;            // average from past roomies
+  preferredZone?: string;          // preferred neighborhood/zone in destination city
+  roommieId?: string;
+  reviewScore?: number;
   reviewCount?: number;
   verified: boolean;
+  emailVerified?: boolean;         // institutional email verified via code
+  foundRoomie?: boolean;           // hides profile from discover when true
   joinedAt: string;
-  likedBy: string[];               // user ids who liked this profile
+  likedBy: string[];
 }
 
 // ── Match & Chat ───────────────────────────────────────────────────────────────
@@ -119,7 +124,7 @@ export interface Review {
   id: string;
   fromUserId: string;
   toUserId: string;
-  score: number;           // 1–5
+  score: number;
   comment: string;
   categories: {
     cleanliness: number;
@@ -136,9 +141,9 @@ export interface Zone {
   id: string;
   name: string;
   city: string;
-  avgRent: number;          // COP thousands
-  safetyScore: number;      // 1–5
-  transitScore: number;     // 1–5
+  avgRent: number;
+  safetyScore: number;
+  transitScore: number;
   nearUniversities: string[];
   description: string;
   tags: string[];
@@ -150,7 +155,7 @@ export interface AppState {
   currentUser: UserProfile | null;
   profiles: UserProfile[];
   matches: Match[];
-  messages: Record<string, Message[]>;  // matchId -> messages
+  messages: Record<string, Message[]>;
   agreements: CohabitationAgreement[];
   reviews: Review[];
   zones: Zone[];
@@ -161,7 +166,7 @@ export interface AppState {
 // ── Compatibility ──────────────────────────────────────────────────────────────
 
 export interface CompatibilityResult {
-  score: number;            // 0–100
+  score: number;
   breakdown: {
     schedule: number;
     cleanliness: number;

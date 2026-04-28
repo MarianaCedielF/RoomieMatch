@@ -9,11 +9,20 @@ const HOUSING_INFO = {
   C: { label: 'Tengo roomie, busco cuarto', color: 'var(--amber)', bg: 'var(--amber-light)', icon: '👫' },
 };
 
+function syncToLocalStorage(updatedUser: import('../types').UserProfile) {
+  try {
+    const accounts = JSON.parse(localStorage.getItem('roomie_accounts') || '[]');
+    const idx = accounts.findIndex((a: any) => a.email.toLowerCase() === updatedUser.email.toLowerCase());
+    if (idx >= 0) { accounts[idx].profile = updatedUser; localStorage.setItem('roomie_accounts', JSON.stringify(accounts)); }
+  } catch {}
+}
+
 export default function ProfileScreen() {
   const { state, dispatch } = useApp();
   const [editBio, setEditBio] = useState(false);
   const [bioText, setBioText] = useState(state.currentUser?.bio || '');
   const [showStateModal, setShowStateModal] = useState(false);
+  const [showFoundModal, setShowFoundModal] = useState(false);
 
   const user = state.currentUser!;
   const myReviews = state.reviews.filter(r => r.toUserId === user.id);
@@ -29,8 +38,15 @@ export default function ProfileScreen() {
     setShowStateModal(false);
   }
 
+  function toggleFoundRoomie(val: boolean) {
+    const updated = { ...user, foundRoomie: val };
+    dispatch({ type: 'UPDATE_PROFILE', payload: { foundRoomie: val } });
+    syncToLocalStorage(updated);
+    setShowFoundModal(false);
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div className="page-content">
         {/* Hero */}
         <div style={{ background: 'linear-gradient(160deg, #0F6E56, #1D9E75)', padding: '32px 20px 24px', color: 'white' }}>
@@ -76,6 +92,38 @@ export default function ProfileScreen() {
             </div>
           </div>
 
+          {/* Found roomie toggle */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--gray-700)' }}>Estado de búsqueda</span>
+            </div>
+            {user.foundRoomie ? (
+              <div style={{ background: '#E8F5E9', border: '1.5px solid #4CAF50', borderRadius: 'var(--radius)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 24 }}>🎉</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontWeight: 700, color: '#2E7D32', fontSize: 14 }}>¡Ya conseguiste roomie!</p>
+                  <p style={{ fontSize: 12, color: '#388E3C', marginTop: 2 }}>Tu perfil está oculto para otros usuarios</p>
+                </div>
+                <button onClick={() => toggleFoundRoomie(false)}
+                  style={{ background: 'none', border: '1.5px solid #4CAF50', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: '#2E7D32', cursor: 'pointer' }}>
+                  Reactivar
+                </button>
+              </div>
+            ) : (
+              <div style={{ background: 'var(--gray-50)', border: '1.5px solid var(--gray-200)', borderRadius: 'var(--radius)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 24 }}>🔍</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontWeight: 700, color: 'var(--dark)', fontSize: 14 }}>Buscando roomie</p>
+                  <p style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>Tu perfil es visible para otros usuarios</p>
+                </div>
+                <button onClick={() => setShowFoundModal(true)}
+                  style={{ background: 'var(--teal)', border: 'none', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'white', cursor: 'pointer' }}>
+                  Ya encontré
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* University */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0', borderBottom: '1px solid var(--gray-100)', marginBottom: 12 }}>
             <BookOpen size={16} color="var(--gray-400)" />
@@ -106,9 +154,10 @@ export default function ProfileScreen() {
                 { icon: '🌙', label: 'Duerme', value: { early: 'Antes de 10pm', normal: '10-11pm', late: '11pm-1am', very_late: 'Después de 1am' }[user.compatibility.sleepTime] },
                 { icon: '🧹', label: 'Limpieza', value: `${user.compatibility.cleanlinessLevel}/5` },
                 { icon: '🔊', label: 'Ruido', value: { silent: 'Silencioso', quiet: 'Tranquilo', moderate: 'Moderado', loud: 'Ruidoso' }[user.compatibility.noiseLevel] },
-                { icon: '💰', label: 'Presupuesto', value: { under_400: '<$400k', '400_600': '$400-600k', '600_800': '$600-800k', over_800: '>$800k' }[user.compatibility.budgetRange] },
+                { icon: '💰', label: 'Presupuesto mensual', value: { under_400: '<$400k', '400_600': '$400-600k', '600_800': '$600-800k', over_800: '>$800k' }[user.compatibility.budgetRange] },
                 { icon: '🚪', label: 'Visitas', value: { never: 'Nunca', rarely: 'Rara vez', sometimes: 'Seguido', often: 'Muy seguido' }[user.compatibility.guestsFrequency] },
                 { icon: '🧑‍🤝‍🧑', label: 'Social', value: { introvert: 'Introvertido', ambivert: 'Ambivertido', extrovert: 'Extrovertido' }[user.compatibility.socialStyle] },
+                { icon: '🧺', label: 'Serv. limpieza', value: { yes: 'Sí pagaría', open: 'Lo converso', no: 'Lo hacemos nosotros' }[user.compatibility.cleaningService ?? 'open'] },
               ].map(({ icon, label, value }) => (
                 <div key={label} style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius)', padding: '10px 12px' }}>
                   <div style={{ fontSize: 11, color: 'var(--gray-400)', marginBottom: 2 }}>{icon} {label}</div>
@@ -160,6 +209,28 @@ export default function ProfileScreen() {
           )}
         </div>
       </div>
+
+      {/* Found roomie confirmation modal */}
+      {showFoundModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={() => setShowFoundModal(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0', width: '100%', padding: '28px 20px 48px' }} className="animate-slide-up">
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 56, marginBottom: 12 }}>🎉</div>
+              <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>¡Qué buena noticia!</h3>
+              <p style={{ fontSize: 14, color: 'var(--gray-600)', lineHeight: 1.6 }}>
+                Al confirmar, tu perfil dejará de aparecer en la búsqueda de otros usuarios.<br />
+                Podrás reactivarlo en cualquier momento desde tu perfil.
+              </p>
+            </div>
+            <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginBottom: 10 }} onClick={() => toggleFoundRoomie(true)}>
+              Sí, ya conseguí roomie ✅
+            </button>
+            <button onClick={() => setShowFoundModal(false)} style={{ width: '100%', background: 'none', border: '1.5px solid var(--gray-200)', borderRadius: 'var(--radius-lg)', padding: 14, fontSize: 15, color: 'var(--gray-600)', cursor: 'pointer', fontWeight: 600 }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Housing state modal */}
       {showStateModal && (

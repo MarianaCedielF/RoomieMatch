@@ -9,7 +9,7 @@ import { MOCK_PROFILES, MOCK_ZONES, MOCK_REVIEWS, UNIVERSITIES } from '../data/m
 const DEMO_MESSAGES: Record<string, Message[]> = {
   'match-demo-1': [
     { id: 'msg-d1-1', matchId: 'match-demo-1', senderId: 'user-3', text: '¡Hola! Vi tu perfil y creo que somos muy compatibles 🙌', createdAt: '2026-04-21T10:00:00Z', read: false },
-    { id: 'msg-d1-2', matchId: 'match-demo-1', senderId: 'user-3', text: 'Tengo un cuarto en Chapinero, muy cerca al TransMilenio. ¿Cuándo podemos hablar?', createdAt: '2026-04-21T10:05:00Z', read: false },
+    { id: 'msg-d1-2', matchId: 'match-demo-1', senderId: 'user-3', text: 'Tengo un cuarto en Chapinero Alto, muy cerca al TransMilenio. ¿Cuándo podemos hablar?', createdAt: '2026-04-21T10:05:00Z', read: false },
   ],
   'match-demo-2': [],
   'match-demo-3': [

@@ -26,7 +26,7 @@ export default function ZonesScreen() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div className="page-header">
         <h1 className="page-title">Guía de Zonas</h1>
       </div>

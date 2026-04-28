@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronRight, CheckCircle, ArrowLeft, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { ChevronRight, CheckCircle, ArrowLeft, Eye, EyeOff, Lock, Mail, ShieldCheck } from 'lucide-react';
 import { useApp, UNIVERSITIES } from '../context/AppContext';
 import type { UserProfile, HousingState, CompatibilityAnswers } from '../types';
 
@@ -9,20 +9,30 @@ const DEFAULT_COMPATIBILITY: CompatibilityAnswers = {
   guestsFrequency: 'rarely', overnightGuests: false, expenseSplit: 'strict_50',
   budgetRange: '400_600', socialStyle: 'ambivert', sharedSpaces: 'neutral',
   hasPets: false, acceptsPets: true, smokes: false, acceptsSmoking: false,
-  studySchedule: 'afternoons',
+  studySchedule: 'afternoons', cleaningService: 'open',
 };
 
-interface StoredAccount {
-  email: string;
-  password: string;
-  profile: UserProfile;
+// ── Security helpers ──────────────────────────────────────────────────────────
+
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + ':roomiematch-2026');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
+function generateVerifCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// ── Local storage helpers ─────────────────────────────────────────────────────
+
+interface StoredAccount { email: string; passwordHash: string; profile: UserProfile; }
 
 function getAccounts(): StoredAccount[] {
   try { return JSON.parse(localStorage.getItem('roomie_accounts') || '[]'); }
   catch { return []; }
 }
-
 function saveAccount(account: StoredAccount) {
   const accounts = getAccounts();
   const idx = accounts.findIndex(a => a.email.toLowerCase() === account.email.toLowerCase());
@@ -30,7 +40,7 @@ function saveAccount(account: StoredAccount) {
   localStorage.setItem('roomie_accounts', JSON.stringify(accounts));
 }
 
-type Step = 'welcome' | 'login' | 'info' | 'housing' | 'compatibility';
+type Step = 'welcome' | 'login' | 'info' | 'housing' | 'compatibility' | 'verify';
 
 export default function AuthScreen() {
   const { dispatch } = useApp();
@@ -40,7 +50,7 @@ export default function AuthScreen() {
   const [form, setForm] = useState({
     name: '', age: '20', email: '', password: '', career: '', semester: '1', originCity: '',
     bio: '', avatar: '🧑', universityId: UNIVERSITIES[0].id, housingState: 'A' as HousingState,
-    neighborhood: '', city: '', rent: '600',
+    neighborhood: '', city: '', rent: '600', preferredZone: '',
   });
   const [compat, setCompat] = useState<CompatibilityAnswers>(DEFAULT_COMPATIBILITY);
   const [showRegPass, setShowRegPass] = useState(false);
@@ -52,32 +62,45 @@ export default function AuthScreen() {
   const [showLoginPass, setShowLoginPass] = useState(false);
   const [loginError, setLoginError] = useState('');
 
+  // Email verification
+  const [verifCode, setVerifCode] = useState('');
+  const [enteredCode, setEnteredCode] = useState('');
+  const [verifError, setVerifError] = useState('');
+  const [pendingProfile, setPendingProfile] = useState<UserProfile | null>(null);
+  const [pendingPasswordHash, setPendingPasswordHash] = useState('');
+
   const setF = (k: string, v: string | boolean | number) => setForm(p => ({ ...p, [k]: v }));
   const setC = (k: keyof CompatibilityAnswers, v: unknown) => setCompat(p => ({ ...p, [k]: v }));
 
   const AVATARS = ['🧑', '👦', '👧', '👨', '👩', '🧑🏽', '👦🏽', '👧🏽', '👨🏽', '👩🏽', '🧑🏾', '👩🏾'];
 
   const selectedUni = UNIVERSITIES.find(u => u.id === form.universityId)!;
-  const autoEmail = `${form.name.toLowerCase().replace(/\s+/g, '.')}@${selectedUni.emailDomain}`;
-  const resolvedEmail = form.email.trim() || autoEmail;
+  const emailDomainOk = !form.email.trim() || form.email.trim().toLowerCase().endsWith('@' + selectedUni.emailDomain);
+  const canContinueInfo = form.name.trim() && form.career.trim() && form.originCity.trim()
+    && form.email.trim() && emailDomainOk && form.password.length >= 4;
 
-  const canContinueInfo = form.name.trim() && form.career.trim() && form.originCity.trim() && form.password.length >= 4;
-
-  function handleLogin() {
+  // ── Login ────────────────────────────────────────────────────────────────────
+  async function handleLogin() {
     setLoginError('');
     const accounts = getAccounts();
     const account = accounts.find(a => a.email.toLowerCase() === loginEmail.toLowerCase().trim());
-    if (!account) { setLoginError('No encontramos una cuenta con ese email.'); return; }
-    if (account.password !== loginPassword) { setLoginError('Contraseña incorrecta.'); return; }
+    if (!account) { setLoginError('no_account'); return; }
+    const hash = await hashPassword(loginPassword);
+    // Support both old plaintext (migration) and new hash
+    if (account.passwordHash !== hash && (account as any).password !== loginPassword) {
+      setLoginError('wrong_password'); return;
+    }
     dispatch({ type: 'LOGIN', payload: account.profile });
   }
 
-  function handleRegister() {
+  // ── Registration: prepare → verify → finalize ─────────────────────────────
+  async function prepareVerification() {
     setRegisterError('');
-    const email = resolvedEmail;
+    const email = form.email.trim();
     const existing = getAccounts().find(a => a.email.toLowerCase() === email.toLowerCase());
-    if (existing) { setRegisterError('Ya existe una cuenta con ese email. Intenta iniciar sesión.'); return; }
+    if (existing) { setRegisterError('email_exists'); return; }
 
+    const passwordHash = await hashPassword(form.password);
     const profile: UserProfile = {
       id: `user-${Date.now()}`,
       name: form.name,
@@ -96,15 +119,29 @@ export default function AuthScreen() {
         rent: parseInt(form.rent),
         rules: [],
       } : undefined,
+      preferredZone: form.preferredZone.trim() || undefined,
       compatibility: compat,
-      verified: true,
+      verified: false,
+      emailVerified: false,
       joinedAt: new Date().toISOString(),
-      likedBy: [],
-      reviewScore: undefined,
-      reviewCount: 0,
+      likedBy: [], reviewScore: undefined, reviewCount: 0,
     };
-    saveAccount({ email, password: form.password, profile });
-    dispatch({ type: 'REGISTER', payload: profile });
+
+    const code = generateVerifCode();
+    setVerifCode(code);
+    setPendingProfile(profile);
+    setPendingPasswordHash(passwordHash);
+    setStep('verify');
+    // In production: call email API here. For demo, code shown on screen.
+  }
+
+  function finalizeRegistration(inputCode: string) {
+    setVerifError('');
+    if (inputCode !== verifCode) { setVerifError('Código incorrecto. Intenta de nuevo.'); return; }
+    if (!pendingProfile) return;
+    const verified = { ...pendingProfile, verified: true, emailVerified: true };
+    saveAccount({ email: verified.email, passwordHash: pendingPasswordHash, profile: verified });
+    dispatch({ type: 'REGISTER', payload: verified });
   }
 
   function demoLogin() {
@@ -113,7 +150,7 @@ export default function AuthScreen() {
       email: 'demo@unal.edu.co', university: UNIVERSITIES[0],
       career: 'Ingeniería de Sistemas', semester: 3, originCity: 'Manizales',
       bio: 'Estudiante foráneo buscando roomie. Me gusta la música y el café ☕',
-      avatar: '🧑', housingState: 'A', verified: true,
+      avatar: '🧑', housingState: 'A', verified: true, emailVerified: true,
       joinedAt: new Date().toISOString(), likedBy: [], reviewCount: 0,
       compatibility: DEFAULT_COMPATIBILITY,
     };
@@ -175,7 +212,7 @@ export default function AuthScreen() {
               <div style={{ position: 'relative' }}>
                 <input className="form-input" type="email" placeholder="tu@universidad.edu.co"
                   value={loginEmail} onChange={e => { setLoginEmail(e.target.value); setLoginError(''); }}
-                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                  onKeyDown={e => e.key === 'Enter' && void handleLogin()}
                   style={{ paddingLeft: 42 }} />
                 <Mail size={16} color="var(--gray-400)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
               </div>
@@ -186,7 +223,7 @@ export default function AuthScreen() {
               <div style={{ position: 'relative' }}>
                 <input className="form-input" type={showLoginPass ? 'text' : 'password'} placeholder="••••••••"
                   value={loginPassword} onChange={e => { setLoginPassword(e.target.value); setLoginError(''); }}
-                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                  onKeyDown={e => e.key === 'Enter' && void handleLogin()}
                   style={{ paddingLeft: 42, paddingRight: 46 }} />
                 <Lock size={16} color="var(--gray-400)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
                 <button onClick={() => setShowLoginPass(s => !s)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', padding: 0 }}>
@@ -195,26 +232,37 @@ export default function AuthScreen() {
               </div>
             </div>
 
-            {loginError && (
+            {loginError === 'no_account' && (
+              <div style={{ background: 'var(--coral-light)', border: '1px solid var(--coral)', borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 16 }}>
+                <p style={{ color: 'var(--coral)', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>⚠️ No encontramos esa cuenta</p>
+                <p style={{ color: 'var(--coral)', fontSize: 12, marginBottom: 8 }}>¿Es la primera vez que usas la app?</p>
+                <button onClick={() => { setLoginError(''); setF('email', loginEmail); setStep('info'); }}
+                  style={{ background: 'var(--coral)', color: 'white', border: 'none', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  Crear una cuenta →
+                </button>
+              </div>
+            )}
+            {loginError === 'wrong_password' && (
               <div style={{ background: 'var(--coral-light)', border: '1px solid var(--coral)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 16 }}>
-                <p style={{ color: 'var(--coral)', fontSize: 13, fontWeight: 500 }}>⚠️ {loginError}</p>
+                <p style={{ color: 'var(--coral)', fontSize: 13, fontWeight: 500 }}>⚠️ Contraseña incorrecta. Intenta de nuevo.</p>
               </div>
             )}
 
             <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginTop: 4, fontSize: 16 }}
-              onClick={handleLogin} disabled={!loginEmail || !loginPassword}>
+              onClick={() => void handleLogin()} disabled={!loginEmail || !loginPassword}>
               Ingresar
             </button>
 
             <div style={{ textAlign: 'center', marginTop: 20 }}>
               <span style={{ color: 'var(--gray-500)', fontSize: 14 }}>¿Aún no tienes cuenta? </span>
-              <button onClick={() => setStep('info')} style={{ background: 'none', border: 'none', color: 'var(--teal)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+              <button onClick={() => { setLoginError(''); setF('email', loginEmail); setStep('info'); }}
+                style={{ background: 'none', border: 'none', color: 'var(--teal)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
                 Crear una aquí
               </button>
             </div>
 
             <div style={{ marginTop: 24, padding: '14px 16px', background: 'var(--gray-50)', borderRadius: 'var(--radius)', border: '1px solid var(--gray-200)' }}>
-              <p style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 4 }}>¿Quieres explorar la app?</p>
+              <p style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 4 }}>¿Quieres explorar sin cuenta?</p>
               <button onClick={demoLogin} style={{ background: 'none', border: 'none', color: 'var(--teal)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: 0 }}>
                 Entrar como demo →
               </button>
@@ -223,7 +271,7 @@ export default function AuthScreen() {
         </div>
       )}
 
-      {/* ── Progress bar (registration steps) ── */}
+      {/* ── Progress bar ── */}
       {(step === 'info' || step === 'housing' || step === 'compatibility') && (
         <div style={{ height: 4, background: 'var(--gray-200)', flexShrink: 0 }}>
           <div style={{ height: '100%', background: 'var(--teal)', width: step === 'info' ? '33%' : step === 'housing' ? '66%' : '100%', transition: 'width 0.3s' }} />
@@ -266,7 +314,7 @@ export default function AuthScreen() {
             <div className="form-group">
               <label className="form-label">Universidad *</label>
               <select className="form-select" value={form.universityId} onChange={e => setF('universityId', e.target.value)}>
-                {UNIVERSITIES.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                {UNIVERSITIES.map(u => <option key={u.id} value={u.id}>{u.name} — {u.city}</option>)}
               </select>
             </div>
             <div className="form-group">
@@ -279,19 +327,22 @@ export default function AuthScreen() {
             </div>
 
             <div style={{ height: 1, background: 'var(--gray-200)', margin: '4px 0 20px' }} />
-            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-700)', marginBottom: 16 }}>🔐 Acceso a tu cuenta</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-700)', marginBottom: 16 }}>🔐 Datos de acceso</p>
 
             <div className="form-group">
-              <label className="form-label">Email institucional</label>
+              <label className="form-label">
+                Email institucional *
+                {form.email && !emailDomainOk && <span style={{ color: 'var(--coral)', fontWeight: 400, marginLeft: 6 }}>— debe terminar en @{selectedUni.emailDomain}</span>}
+                {form.email && emailDomainOk && <span style={{ color: 'var(--teal)', fontWeight: 400, marginLeft: 6 }}>✓</span>}
+              </label>
               <div style={{ position: 'relative' }}>
-                <input className="form-input" type="email" value={form.email} onChange={e => setF('email', e.target.value)}
-                  placeholder={form.name ? autoEmail : `tu@${selectedUni.emailDomain}`}
-                  style={{ paddingLeft: 42 }} />
-                <Mail size={15} color="var(--gray-400)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <input className="form-input" type="email" value={form.email}
+                  onChange={e => setF('email', e.target.value)}
+                  placeholder={`tu@${selectedUni.emailDomain}`}
+                  style={{ paddingLeft: 42, borderColor: form.email && !emailDomainOk ? 'var(--coral)' : undefined }} />
+                <Mail size={15} color={form.email && !emailDomainOk ? 'var(--coral)' : 'var(--gray-400)'} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
               </div>
-              {!form.email && form.name && (
-                <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>Se usará: {autoEmail}</span>
-              )}
+              <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>Recibirás un código de verificación aquí</span>
             </div>
 
             <div className="form-group">
@@ -309,14 +360,10 @@ export default function AuthScreen() {
 
             <div className="form-group">
               <label className="form-label">Bio (opcional)</label>
-              <textarea className="form-input" rows={3} placeholder="Me gusta el café, soy muy ordenada y busco un ambiente tranquilo..." value={form.bio} onChange={e => setF('bio', e.target.value)} style={{ resize: 'none' }} />
+              <textarea className="form-input" rows={3}
+                placeholder="Me gusta el café, soy muy ordenada y busco un ambiente tranquilo..."
+                value={form.bio} onChange={e => setF('bio', e.target.value)} style={{ resize: 'none' }} />
             </div>
-
-            {registerError && (
-              <div style={{ background: 'var(--coral-light)', border: '1px solid var(--coral)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 16 }}>
-                <p style={{ color: 'var(--coral)', fontSize: 13 }}>⚠️ {registerError}</p>
-              </div>
-            )}
 
             <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginTop: 8 }}
               onClick={() => { setRegisterError(''); setStep('housing'); }}
@@ -376,7 +423,15 @@ export default function AuthScreen() {
               </div>
             )}
 
-            <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginTop: 20 }} onClick={() => setStep('compatibility')}>
+            <div style={{ height: 1, background: 'var(--gray-200)', margin: '20px 0 16px' }} />
+            <div className="form-group">
+              <label className="form-label">📍 Zona preferida en {selectedUni.city}</label>
+              <input className="form-input" placeholder={`Ej: Chapinero, El Poblado, San Fernando…`}
+                value={form.preferredZone} onChange={e => setF('preferredZone', e.target.value)} />
+              <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>Barrio o sector donde preferirías vivir</span>
+            </div>
+
+            <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginTop: 8 }} onClick={() => setStep('compatibility')}>
               Continuar <ChevronRight size={18} />
             </button>
           </div>
@@ -416,6 +471,9 @@ export default function AuthScreen() {
             <ChoiceGroup label="¿Cada cuánto limpias áreas comunes?"
               options={[{ value: 'daily', label: 'Diario' }, { value: 'weekly', label: 'Semanal' }, { value: 'biweekly', label: 'Quincenal' }, { value: 'monthly', label: 'Mensual' }]}
               value={compat.cleaningFrequency} onChange={v => setC('cleaningFrequency', v)} />
+            <ChoiceGroup label="¿Estarías dispuesto/a a contratar servicio de limpieza?"
+              options={[{ value: 'yes', label: 'Sí, pagaría' }, { value: 'open', label: 'Lo converso' }, { value: 'no', label: 'No, lo hacemos nosotros' }]}
+              value={compat.cleaningService ?? 'open'} onChange={v => setC('cleaningService', v)} />
 
             <SectionTitle>🔊 Ruido y estudio</SectionTitle>
             <ChoiceGroup label="Nivel de ruido que produces normalmente"
@@ -453,8 +511,77 @@ export default function AuthScreen() {
             <BoolChoice label="¿Fumas?" value={compat.smokes} onChange={v => setC('smokes', v)} />
             <BoolChoice label="¿Aceptas que tu roomie fume?" value={compat.acceptsSmoking} onChange={v => setC('acceptsSmoking', v)} />
 
-            <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginTop: 20 }} onClick={handleRegister}>
-              Crear mi perfil 🚀
+            {registerError === 'email_exists' && (
+              <div style={{ background: 'var(--coral-light)', border: '1px solid var(--coral)', borderRadius: 'var(--radius)', padding: '12px 14px', marginTop: 20 }}>
+                <p style={{ color: 'var(--coral)', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>⚠️ Ese email ya tiene una cuenta</p>
+                <button onClick={() => { setRegisterError(''); setLoginEmail(form.email.trim()); setStep('login'); }}
+                  style={{ background: 'var(--coral)', color: 'white', border: 'none', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  Iniciar sesión →
+                </button>
+              </div>
+            )}
+
+            <div style={{ background: 'var(--teal-light)', border: '1px solid var(--teal)', borderRadius: 'var(--radius)', padding: '12px 14px', marginTop: 24, marginBottom: 4 }}>
+              <p style={{ fontSize: 12, color: 'var(--teal-dark)', fontWeight: 600, marginBottom: 2 }}>📧 Tu email para iniciar sesión:</p>
+              <p style={{ fontSize: 14, color: 'var(--teal-dark)', fontWeight: 700 }}>{form.email.trim()}</p>
+              <p style={{ fontSize: 11, color: 'var(--teal)', marginTop: 2 }}>Te enviaremos un código de verificación a este correo</p>
+            </div>
+
+            <button className="btn btn-primary" style={{ width: '100%', padding: 16, marginTop: 12 }}
+              onClick={() => void prepareVerification()}>
+              Verificar correo y crear perfil ✉️
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Verification step ── */}
+      {step === 'verify' && (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ padding: '28px 24px 48px' }} className="animate-slide-up">
+            <div style={{ textAlign: 'center', marginBottom: 32 }}>
+              <div style={{ width: 72, height: 72, borderRadius: 'var(--radius-full)', background: 'var(--teal-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 36 }}>
+                <ShieldCheck size={36} color="var(--teal)" />
+              </div>
+              <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Verifica tu correo</h2>
+              <p style={{ color: 'var(--gray-500)', fontSize: 14, lineHeight: 1.6 }}>
+                Enviamos un código de 6 dígitos a<br />
+                <strong style={{ color: 'var(--dark)' }}>{form.email.trim()}</strong>
+              </p>
+            </div>
+
+            {/* Demo mode: show code */}
+            <div style={{ background: 'linear-gradient(135deg, #FFF8E1, #FFF3CD)', border: '1.5px solid #FFC107', borderRadius: 'var(--radius-lg)', padding: '14px 16px', marginBottom: 24 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#856404', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Modo demo — código de prueba</p>
+              <p style={{ fontSize: 32, fontWeight: 900, color: '#856404', letterSpacing: 6, textAlign: 'center', fontFamily: 'monospace' }}>{verifCode}</p>
+              <p style={{ fontSize: 11, color: '#856404', textAlign: 'center', marginTop: 4 }}>En producción este código llegaría a tu email institucional</p>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Ingresa el código de 6 dígitos</label>
+              <input className="form-input"
+                type="text" inputMode="numeric" maxLength={6}
+                placeholder="_ _ _ _ _ _"
+                value={enteredCode}
+                onChange={e => { setEnteredCode(e.target.value.replace(/\D/g, '')); setVerifError(''); }}
+                style={{ textAlign: 'center', fontSize: 28, fontWeight: 700, letterSpacing: 8, fontFamily: 'monospace' }} />
+            </div>
+
+            {verifError && (
+              <div style={{ background: 'var(--coral-light)', border: '1px solid var(--coral)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 16 }}>
+                <p style={{ color: 'var(--coral)', fontSize: 13 }}>⚠️ {verifError}</p>
+              </div>
+            )}
+
+            <button className="btn btn-primary" style={{ width: '100%', padding: 16 }}
+              onClick={() => finalizeRegistration(enteredCode)}
+              disabled={enteredCode.length !== 6}>
+              Verificar y crear cuenta ✅
+            </button>
+
+            <button onClick={() => setStep('compatibility')}
+              style={{ width: '100%', background: 'none', border: 'none', color: 'var(--gray-500)', fontSize: 14, cursor: 'pointer', marginTop: 16, padding: 8 }}>
+              ← Volver atrás
             </button>
           </div>
         </div>

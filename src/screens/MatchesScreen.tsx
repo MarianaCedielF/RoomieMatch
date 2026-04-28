@@ -89,7 +89,7 @@ export default function MatchesScreen() {
 
   // ── List view ──────────────────────────────────────────────────────────────
   if (view === 'list') return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div className="page-header">
         <h1 className="page-title">Mis Matches</h1>
         <span className="badge badge-teal">{matches.length}</span>
@@ -136,7 +136,7 @@ export default function MatchesScreen() {
     const partner = getMatchPartner(activeMatch.id)!;
     const chatMessages = messages[activeMatch.id] || [];
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         {/* Header */}
         <div style={{ padding: '12px 16px', background: 'white', borderBottom: '1px solid var(--gray-200)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <button onClick={() => setView('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--teal)', display: 'flex', alignItems: 'center' }}>
@@ -205,7 +205,7 @@ export default function MatchesScreen() {
   if (view === 'agreement' && activeMatch) {
     const partner = getMatchPartner(activeMatch.id)!;
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         <div style={{ padding: '12px 16px', background: 'white', borderBottom: '1px solid var(--gray-200)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={() => setView('chat')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--teal)' }}><ArrowLeft size={22} /></button>
           <h2 style={{ fontSize: 18, fontWeight: 800 }}>Acuerdo de convivencia</h2>
@@ -270,7 +270,7 @@ export default function MatchesScreen() {
   if (view === 'review' && activeMatch) {
     const partner = getMatchPartner(activeMatch.id)!;
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         <div style={{ padding: '12px 16px', background: 'white', borderBottom: '1px solid var(--gray-200)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={() => setView('chat')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--teal)' }}><ArrowLeft size={22} /></button>
           <h2 style={{ fontSize: 18, fontWeight: 800 }}>Reseña de convivencia</h2>

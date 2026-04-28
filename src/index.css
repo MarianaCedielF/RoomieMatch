@@ -60,7 +60,9 @@ html, body, #root {
   flex: 1;
   overflow-y: auto;
   padding-bottom: 80px;
-  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* Bottom Navigation */
