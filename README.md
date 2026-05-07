@@ -18,20 +18,105 @@ Una app mobile-first que empareja a foráneos basándose en **compatibilidad de 
 
 ---
 
-## 📱 Funcionalidades MVP
+## 📱 Funcionalidades completas
 
-### Núcleo
-- ✅ Registro con verificación de correo universitario
-- ✅ Test de compatibilidad de 6 dimensiones (horarios, limpieza, ruido, visitas, presupuesto, social)
-- ✅ Feed de perfiles con swipe (like / pasar)
-- ✅ Score de compatibilidad visible por perfil
-- ✅ Match mutuo + chat habilitado
+### 🔐 Autenticación y registro
 
-### Secundarias
-- ✅ Publicación de cuarto disponible (Estado B)
-- ✅ Acuerdo de convivencia digital
-- ✅ Sistema de reseñas verificadas por categoría
-- ✅ Guía de zonas universitarias por ciudad
+- ✅ Pantalla de bienvenida con acceso a demo, login y registro
+- ✅ Registro en 3 pasos con barra de progreso
+- ✅ Selección de avatar (12 emojis disponibles)
+- ✅ Selección de universidad entre más de 30 instituciones colombianas
+- ✅ Validación de dominio de correo según universidad seleccionada (ej. `@uniandes.edu.co`)
+- ✅ Contraseñas hasheadas con SHA-256 + salt antes de guardarse
+- ✅ Verificación de correo por código de 6 dígitos (modo demo: código visible en pantalla)
+- ✅ Persistencia de cuentas en `localStorage`
+- ✅ Login con email + contraseña, con mensajes de error contextuales
+- ✅ Modo demo: entra sin registro con 3 matches y conversaciones pre-cargadas
+
+### 🧪 Test de compatibilidad (16 preguntas en 7 categorías)
+
+- ✅ **Horarios de sueño:** hora de acostarse, hora de despertar
+- ✅ **Limpieza:** nivel de orden (escala 1–5), frecuencia de limpieza de áreas comunes, disposición a contratar servicio de aseo
+- ✅ **Ruido y estudio:** nivel de ruido que produce, entorno preferido para estudiar
+- ✅ **Visitas:** frecuencia de visitas, aceptación de visitas que duermen
+- ✅ **Presupuesto:** rango de arriendo mensual (COP), forma de dividir los gastos
+- ✅ **Estilo social:** perfil introvertido / ambivertido / extrovertido, preferencia de espacios compartidos
+- ✅ **Mascotas y fumar:** tiene mascotas, acepta mascotas, fuma, acepta que roomie fume
+
+### 🏠 Situación habitacional
+
+- ✅ **Estado A:** Sin cuarto ni roomie — busca ambos
+- ✅ **Estado B:** Tiene cuarto disponible — puede publicar barrio, ciudad y precio de arriendo
+- ✅ **Estado C:** Ya tiene roomie — juntos buscan cuarto
+- ✅ Lógica de emparejamiento diferenciada: B no puede hacer match con B; C solo ve perfiles B
+
+### 🔍 Descubrir perfiles
+
+- ✅ Feed de tarjetas apiladas con efecto de profundidad (carta siguiente visible detrás)
+- ✅ Swipe animado: Like (❤️) y Pasar (✕) con animación de salida
+- ✅ Score de compatibilidad (0–100%) visible directamente en la tarjeta
+- ✅ Filtro de perfiles por ciudad mediante chips scrollables horizontales
+- ✅ Información en la tarjeta: avatar, nombre, edad, carrera, semestre, ciudad de origen → ciudad destino, zona preferida, estado habitacional, detalles del cuarto (si Estado B), bio, universidad, calificación de reseñas
+- ✅ Modal de **compatibilidad detallada por categoría** con barras de progreso animadas (6 dimensiones)
+- ✅ Modal de **"¡Es un Match!"** al producirse like mutuo, con opción de ir al chat o seguir explorando
+- ✅ Exclusión automática de perfiles ya swipeados, ya matcheados y usuarios que marcaron "Ya conseguí roomie"
+- ✅ Estado vacío amigable cuando no hay más perfiles en la ciudad seleccionada
+
+### 💬 Matches y Chat
+
+- ✅ Lista de matches con avatar, nombre, último mensaje, hora y score de compatibilidad miniatura
+- ✅ Chat en tiempo real (en memoria) con burbujas diferenciadas por remitente
+- ✅ Mensajes sugeridos para romper el hielo (4 opciones rápidas en chats nuevos)
+- ✅ Marcar mensajes como leídos al abrir el chat
+
+### 📄 Acuerdo de convivencia digital
+
+- ✅ Formulario con 6 secciones editables: limpieza, política de visitas, horarios de silencio, división de gastos, zonas comunes, otras reglas
+- ✅ Creación del acuerdo desde el chat, asociado al match
+- ✅ Vista de solo lectura del acuerdo una vez firmado, con fecha de creación
+
+### ⭐ Sistema de reseñas
+
+- ✅ Calificación general de 1 a 5 estrellas
+- ✅ 4 categorías independientes: Limpieza, Ruido, Respeto, Puntualidad en pagos
+- ✅ Campo de comentario libre
+- ✅ Score promedio actualizado en tiempo real en el perfil del calificado
+- ✅ Reseñas visibles en el perfil con desglose por categoría
+
+### 👤 Perfil de usuario
+
+- ✅ Visualización con encabezado degradado y avatar
+- ✅ Indicador de verificación con correo universitario
+- ✅ Edición inline de bio
+- ✅ Cambio de situación habitacional (modal A / B / C)
+- ✅ Botón **"Ya conseguí roomie"** — oculta el perfil de la búsqueda de otros usuarios
+- ✅ Reactivar búsqueda en cualquier momento
+- ✅ Resumen de hábitos de convivencia: hora de sueño, limpieza, ruido, presupuesto mensual, visitas, estilo social, servicio de limpieza
+- ✅ Estadísticas: número de matches, reseñas recibidas, score promedio
+- ✅ Listado de reseñas recibidas con categorías desglosadas
+- ✅ Botón de cerrar sesión
+
+### 🗺️ Guía de zonas universitarias
+
+- ✅ Listado de barrios y sectores recomendados para universitarios
+- ✅ Filtro por ciudad mediante chips
+- ✅ Tarjeta de zona: nombre, ciudad, precio promedio de arriendo, score de seguridad y transporte (escala de puntos), tags descriptivos
+- ✅ Modal de detalle con: precio / seguridad / transporte en tarjetas, descripción completa, universidades cercanas y listado de características
+
+### ⚙️ Sistema y características transversales
+
+- ✅ Algoritmo de compatibilidad ponderado en 6 dimensiones (resultado 0–100%)
+- ✅ Labels de compatibilidad: Excelente (≥80) · Buena (≥65) · Regular (≥50) · Baja (<50)
+- ✅ Color coding del score: verde / amarillo / naranja / rojo según nivel
+- ✅ Navegación inferior (BottomNav) con 4 pestañas: Descubrir, Matches, Zonas, Perfil
+- ✅ Animaciones: swipe izquierda/derecha, slide-up en modales, fade-in en modal de match
+- ✅ Diseño mobile-first con `height: 100dvh`
+- ✅ Más de 30 universidades en 8+ ciudades colombianas
+- ✅ 16 perfiles mock con datos realistas
+- ✅ 6 zonas universitarias en las principales ciudades del país
+- ✅ Reseñas mock pre-cargadas para simular historial
+
+---
 
 ### Estados habitacionales
 | Estado | Descripción |

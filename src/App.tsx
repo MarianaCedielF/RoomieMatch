@@ -19,7 +19,7 @@ function AppInner() {
         <AuthScreen />
       ) : (
         <>
-          <div className="page-content" style={{ paddingBottom: 80 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {screen === 'discover' && <DiscoverScreen />}
             {screen === 'matches' && <MatchesScreen />}
             {screen === 'zones' && <ZonesScreen />}

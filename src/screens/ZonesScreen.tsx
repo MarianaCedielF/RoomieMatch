@@ -31,17 +31,17 @@ export default function ZonesScreen() {
         <h1 className="page-title">Guía de Zonas</h1>
       </div>
 
-      <div className="page-content" style={{ padding: '0 0 20px' }}>
-        {/* City filter */}
-        <div style={{ padding: '12px 16px', display: 'flex', gap: 8, overflowX: 'auto', borderBottom: '1px solid var(--gray-100)' }}>
-          {cities.map(city => (
-            <button key={city} onClick={() => setSelectedCity(city)}
-              style={{ padding: '7px 14px', borderRadius: 'var(--radius-full)', border: '1.5px solid', borderColor: selectedCity === city ? 'var(--teal)' : 'var(--gray-200)', background: selectedCity === city ? 'var(--teal-light)' : 'white', color: selectedCity === city ? 'var(--teal)' : 'var(--gray-600)', fontWeight: 600, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-              {city === 'all' ? '🇨🇴 Todas' : `${CITY_FLAGS[city] || '🏘️'} ${city}`}
-            </button>
-          ))}
-        </div>
+      {/* City filter — always visible, outside the scroll area */}
+      <div style={{ padding: '10px 16px', display: 'flex', gap: 8, overflowX: 'auto', borderBottom: '1px solid var(--gray-100)', flexShrink: 0, scrollbarWidth: 'none' }}>
+        {cities.map(city => (
+          <button key={city} onClick={() => setSelectedCity(city)}
+            style={{ padding: '7px 14px', borderRadius: 'var(--radius-full)', border: '1.5px solid', borderColor: selectedCity === city ? 'var(--teal)' : 'var(--gray-200)', background: selectedCity === city ? 'var(--teal-light)' : 'white', color: selectedCity === city ? 'var(--teal)' : 'var(--gray-600)', fontWeight: 600, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {city === 'all' ? '🇨🇴 Todas' : `${CITY_FLAGS[city] || '🏘️'} ${city}`}
+          </button>
+        ))}
+      </div>
 
+      <div className="page-content">
         <div style={{ padding: '16px' }}>
           {filtered.map(zone => (
             <button key={zone.id} onClick={() => setSelectedZone(zone)}

@@ -99,7 +99,7 @@ export default function DiscoverScreen() {
         {CityChips}
       </div>
 
-      <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
+      <div style={{ flex: 1, padding: '16px 20px 88px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Cards stack */}
         <div style={{ position: 'relative', flex: 1 }}>
           {/* Next card (behind) */}
@@ -220,6 +220,10 @@ export default function DiscoverScreen() {
 
 function CompatibilityModal({ user, currentUser, onClose }: { user: UserProfile; currentUser: UserProfile; onClose: () => void }) {
   const compat = calculateCompatibility(currentUser.compatibility, user.compatibility);
+  const [dragY, setDragY] = useState(0);
+  const startYRef = useRef(0);
+  const panelRef = useRef<HTMLDivElement>(null);
+
   const breakdown = [
     { key: 'schedule', label: 'Horarios', icon: '🌙' },
     { key: 'cleanliness', label: 'Limpieza', icon: '🧹' },
@@ -229,10 +233,42 @@ function CompatibilityModal({ user, currentUser, onClose }: { user: UserProfile;
     { key: 'budget', label: 'Presupuesto mensual', icon: '💰' },
   ] as const;
 
+  function handleTouchStart(e: React.TouchEvent) {
+    startYRef.current = e.touches[0].clientY;
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    const delta = e.touches[0].clientY - startYRef.current;
+    if (delta > 0 && (panelRef.current?.scrollTop ?? 0) === 0) {
+      setDragY(delta);
+    }
+  }
+
+  function handleTouchEnd() {
+    if (dragY > 100) {
+      onClose();
+    } else {
+      setDragY(0);
+    }
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0', width: '100%', padding: '24px 20px 56px', maxHeight: '92vh', height: '92vh', overflowY: 'scroll', WebkitOverflowScrolling: 'touch' as any }} className="animate-slide-up">
-        <div style={{ width: 36, height: 4, background: 'var(--gray-200)', borderRadius: 2, margin: '0 auto 20px' }} />
+      <div
+        ref={panelRef}
+        onClick={e => e.stopPropagation()}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          background: 'white', borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
+          width: '100%', padding: '24px 20px 56px', maxHeight: '85vh',
+          overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any,
+          transform: `translateY(${dragY}px)`,
+          transition: dragY === 0 ? 'transform 0.3s ease' : 'none',
+        }}
+        className="animate-slide-up">
+        <div style={{ width: 36, height: 4, background: 'var(--gray-300)', borderRadius: 2, margin: '0 auto 20px', cursor: 'grab' }} />
         <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Compatibilidad con {user.name}</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
           <div className="score-ring" style={{ background: getCompatibilityColor(compat.score), width: 64, height: 64, fontSize: 20 }}>{compat.score}%</div>
